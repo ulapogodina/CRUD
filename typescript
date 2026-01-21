@@ -1,0 +1,21 @@
+// Типы и интерфейсы
+interface Car {
+    id: number;
+    manufacturer: string;
+    model: string;
+    year: number;
+    isUsed: boolean;
+    price: number;
+}
+
+// Тип для создания новой машины (без ID)
+type NewCar = Omit<Car, 'id'>;
+
+// Тип для обновления машины (все поля опциональны кроме ID)
+type CarUpdate = Partial<Omit<Car, 'id'>> & { id: number };
+
+// Состояние приложения
+type AppState = {
+    cars: Car[];
+    nextId: number;
+};
