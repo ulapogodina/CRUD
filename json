@@ -1,0 +1,21 @@
+{
+  "name": "car-catalog-crud",
+  "version": "1.0.0",
+  "description": "Консольное приложение для управления каталогом машин",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": ["typescript", "crud", "catalog", "cars"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "ts-node": "^10.9.0"
+  }
+}
