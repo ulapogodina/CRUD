@@ -1,0 +1,651 @@
+import * as readline from 'readline';
+
+// Типы и интерфейсы
+export interface Car {
+    id: number;
+    manufacturer: string;
+    model: string;
+    year: number;
+    isUsed: boolean;
+    price: number;
+}
+
+// Тип для создания новой машины (без ID)
+export type NewCar = Omit<Car, 'id'>;
+
+// Тип для обновления машины (все поля опциональны кроме ID)
+export type CarUpdate = Partial<Omit<Car, 'id'>> & { id: number };
+
+// Класс для управления каталогом машин
+export class CarCatalog {
+    private cars: Car[] = [];
+    private nextId: number = 1;
+
+    // Create - создание новой машины
+    addCar(newCar: NewCar): Car {
+        const car: Car = {
+            id: this.nextId++,
+            ...newCar
+        };
+        this.cars.push(car);
+        return car;
+    }
+
+    // Read - чтение всех машин
+    getAllCars(): Car[] {
+        return [...this.cars];
+    }
+
+    // Read - поиск машины по ID
+    getCarById(id: number): Car | undefined {
+        return this.cars.find(car => car.id === id);
+    }
+
+    // Read - поиск машин по фильтрам
+    searchCars(filters: Partial<NewCar>): Car[] {
+        return this.cars.filter(car => {
+            // Проверяем все фильтры
+            for (const [key, value] of Object.entries(filters)) {
+                if (value === undefined || value === '') {
+                    continue;
+                }
+
+                switch (key) {
+                    case 'manufacturer':
+                        if (typeof value === 'string' && 
+                            !car.manufacturer.toLowerCase().includes(value.toLowerCase())) {
+                            return false;
+                        }
+                        break;
+                        
+                    case 'model':
+                        if (typeof value === 'string' && 
+                            !car.model.toLowerCase().includes(value.toLowerCase())) {
+                            return false;
+                        }
+                        break;
+                        
+                    case 'year':
+                        if (car.year !== value) {
+                            return false;
+                        }
+                        break;
+                        
+                    case 'isUsed':
+                        if (car.isUsed !== value) {
+                            return false;
+                        }
+                        break;
+                        
+                    case 'price':
+                        if (car.price > (value as number)) {
+                            return false;
+                        }
+                        break;
+                }
+            }
+            return true;
+        });
+    }
+
+    // Update - обновление машины
+    updateCar(updateData: CarUpdate): Car | undefined {
+        const index = this.cars.findIndex(car => car.id === updateData.id);
+        
+        if (index === -1) {
+            return undefined;
+        }
+
+        // Удаляем id из updateData чтобы не перезаписать
+        const { id, ...updates } = updateData;
+        const updatedCar = {
+            ...this.cars[index],
+            ...updates
+        };
+
+        this.cars[index] = updatedCar;
+        return updatedCar;
+    }
+
+    // Delete - удаление машины
+    deleteCar(id: number): boolean {
+        const initialLength = this.cars.length;
+        this.cars = this.cars.filter(car => car.id !== id);
+        return this.cars.length < initialLength;
+    }
+
+    // Получение статистики
+    getStatistics(): {
+        totalCars: number;
+        newCars: number;
+        usedCars: number;
+        averagePrice: number;
+        minYear: number;
+        maxYear: number;
+    } {
+        if (this.cars.length === 0) {
+            return {
+                totalCars: 0,
+                newCars: 0,
+                usedCars: 0,
+                averagePrice: 0,
+                minYear: 0,
+                maxYear: 0
+            };
+        }
+
+        const usedCars = this.cars.filter(car => car.isUsed).length;
+        const totalPrice = this.cars.reduce((sum, car) => sum + car.price, 0);
+        const years = this.cars.map(car => car.year);
+
+        return {
+            totalCars: this.cars.length,
+            newCars: this.cars.length - usedCars,
+            usedCars: usedCars,
+            averagePrice: Math.round(totalPrice / this.cars.length),
+            minYear: Math.min(...years),
+            maxYear: Math.max(...years)
+        };
+    }
+
+    // Очистка каталога
+    clearCatalog(): void {
+        this.cars = [];
+        this.nextId = 1;
+    }
+
+    // Добавление демо-данных для тестирования
+    addDemoData(): void {
+        const demoData: NewCar[] = [
+            {
+                manufacturer: 'Toyota',
+                model: 'Camry',
+                year: 2022,
+                isUsed: false,
+                price: 30000
+            },
+            {
+                manufacturer: 'BMW',
+                model: 'X5',
+                year: 2020,
+                isUsed: true,
+                price: 45000
+            },
+            {
+                manufacturer: 'Mercedes',
+                model: 'C-Class',
+                year: 2023,
+                isUsed: false,
+                price: 55000
+            },
+            {
+                manufacturer: 'Honda',
+                model: 'Civic',
+                year: 2019,
+                isUsed: true,
+                price: 20000
+            },
+            {
+                manufacturer: 'Tesla',
+                model: 'Model 3',
+                year: 2021,
+                isUsed: true,
+                price: 35000
+            }
+        ];
+
+        demoData.forEach(car => this.addCar(car));
+    }
+}
+
+// Вспомогательные функции для работы с консолью
+export class ConsoleInterface {
+    private rl: readline.Interface;
+    private catalog: CarCatalog;
+
+    constructor() {
+        this.rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+        this.catalog = new CarCatalog();
+    }
+
+    // Отображение меню
+    private displayMenu(): void {
+        console.clear();
+        console.log('\n=== 🚗 КАТАЛОГ МАШИН ===');
+        console.log('1. Добавить машину');
+        console.log('2. Показать все машины');
+        console.log('3. Найти машину по ID');
+        console.log('4. Поиск машин по фильтрам');
+        console.log('5. Обновить информацию о машине');
+        console.log('6. Удалить машину');
+        console.log('7. Показать статистику');
+        console.log('8. Очистить каталог');
+        console.log('9. Добавить демо-данные');
+        console.log('0. Выйти');
+    }
+
+    // Запрос ввода
+    private askQuestion(question: string): Promise<string> {
+        return new Promise((resolve) => {
+            this.rl.question(question, (answer) => {
+                resolve(answer);
+            });
+        });
+    }
+
+    // Форматированный вывод машины
+    private displayCar(car: Car): void {
+        console.log('\n' + '═'.repeat(40));
+        console.log(`🆔 ID: ${car.id}`);
+        console.log(`🏭 Производитель: ${car.manufacturer}`);
+        console.log(`🚘 Модель: ${car.model}`);
+        console.log(`📅 Год выпуска: ${car.year}`);
+        console.log(`🔧 Состояние: ${car.isUsed ? 'Б/У' : 'Новая'}`);
+        console.log(`💰 Цена: $${car.price.toLocaleString('ru-RU')}`);
+        console.log('═'.repeat(40));
+    }
+
+    // Валидация года
+    private isValidYear(year: number): boolean {
+        const currentYear = new Date().getFullYear();
+        return !isNaN(year) && year >= 1900 && year <= currentYear + 1;
+    }
+
+    // Добавление машины
+    private async addCar(): Promise<void> {
+        console.log('\n=== 🆕 ДОБАВЛЕНИЕ НОВОЙ МАШИНЫ ===');
+
+        try {
+            const manufacturer = await this.askQuestion('🏭 Производитель: ');
+            if (!manufacturer.trim()) {
+                console.log('❌ Ошибка: производитель не может быть пустым!');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const model = await this.askQuestion('🚘 Модель: ');
+            if (!model.trim()) {
+                console.log('❌ Ошибка: модель не может быть пустой!');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const yearStr = await this.askQuestion('📅 Год выпуска: ');
+            const year = parseInt(yearStr);
+            if (!this.isValidYear(year)) {
+                console.log(`❌ Ошибка: введите корректный год (1900-${new Date().getFullYear() + 1})!`);
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const isUsedInput = await this.askQuestion('🔧 Состояние (новая/бу): ');
+            const isUsed = isUsedInput.toLowerCase() === 'бу' || 
+                          isUsedInput.toLowerCase() === 'б/у' ||
+                          isUsedInput.toLowerCase() === 'used' ||
+                          isUsedInput.toLowerCase() === 'true';
+
+            const priceStr = await this.askQuestion('💰 Цена ($): ');
+            const price = parseFloat(priceStr);
+            if (isNaN(price) || price <= 0 || price > 10000000) {
+                console.log('❌ Ошибка: цена должна быть положительным числом (до 10,000,000)!');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const newCar: NewCar = {
+                manufacturer: manufacturer.trim(),
+                model: model.trim(),
+                year,
+                isUsed,
+                price
+            };
+
+            const car = this.catalog.addCar(newCar);
+            console.log('\n✅ Машина успешно добавлена:');
+            this.displayCar(car);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при добавлении машины:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Показать все машины
+    private async showAllCars(): Promise<void> {
+        const cars = this.catalog.getAllCars();
+        
+        if (cars.length === 0) {
+            console.log('\n📭 Каталог пуст.');
+        } else {
+            console.log(`\n=== 📋 ВСЕ МАШИНЫ (${cars.length}) ===`);
+            cars.forEach(car => this.displayCar(car));
+        }
+        await this.askQuestion('\nНажмите Enter для продолжения...');
+    }
+
+    // Поиск по ID
+    private async findCarById(): Promise<void> {
+        try {
+            const idStr = await this.askQuestion('🔍 Введите ID машины: ');
+            const id = parseInt(idStr);
+            
+            if (isNaN(id) || id <= 0) {
+                console.log('❌ Ошибка: ID должен быть положительным числом!');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const car = this.catalog.getCarById(id);
+            
+            if (car) {
+                this.displayCar(car);
+            } else {
+                console.log(`\n❌ Машина с ID ${id} не найдена.`);
+            }
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при поиске машины:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Поиск по фильтрам
+    private async searchCars(): Promise<void> {
+        console.log('\n=== 🔍 ПОИСК МАШИН ===');
+        console.log('(Оставьте поле пустым, если фильтр не нужен)');
+
+        try {
+            const manufacturer = await this.askQuestion('🏭 Производитель: ');
+            const model = await this.askQuestion('🚘 Модель: ');
+            const yearInput = await this.askQuestion('📅 Год выпуска: ');
+            const isUsedInput = await this.askQuestion('🔧 Состояние (новая/бу): ');
+            const maxPriceInput = await this.askQuestion('💰 Максимальная цена ($): ');
+
+            const filters: Partial<NewCar> = {};
+            
+            if (manufacturer.trim()) {
+                filters.manufacturer = manufacturer.trim();
+            }
+            if (model.trim()) {
+                filters.model = model.trim();
+            }
+            if (yearInput.trim()) {
+                const year = parseInt(yearInput);
+                if (this.isValidYear(year)) {
+                    filters.year = year;
+                }
+            }
+            if (isUsedInput.trim()) {
+                filters.isUsed = isUsedInput.toLowerCase() === 'бу' || 
+                               isUsedInput.toLowerCase() === 'б/у' ||
+                               isUsedInput.toLowerCase() === 'used' ||
+                               isUsedInput.toLowerCase() === 'true';
+            }
+            if (maxPriceInput.trim()) {
+                const maxPrice = parseFloat(maxPriceInput);
+                if (!isNaN(maxPrice) && maxPrice > 0) {
+                    filters.price = maxPrice;
+                }
+            }
+
+            const results = this.catalog.searchCars(filters);
+            
+            if (results.length === 0) {
+                console.log('\n❌ Машины по заданным критериям не найдены.');
+            } else {
+                console.log(`\n=== ✅ НАЙДЕНО МАШИН: ${results.length} ===`);
+                results.forEach(car => this.displayCar(car));
+            }
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при поиске:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Обновление машины
+    private async updateCar(): Promise<void> {
+        console.log('\n=== ✏️ ОБНОВЛЕНИЕ ИНФОРМАЦИИ О МАШИНЕ ===');
+        
+        try {
+            const idStr = await this.askQuestion('Введите ID машины для обновления: ');
+            const id = parseInt(idStr);
+            
+            if (isNaN(id) || id <= 0) {
+                console.log('❌ Ошибка: ID должен быть положительным числом!');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const existingCar = this.catalog.getCarById(id);
+            if (!existingCar) {
+                console.log(`\n❌ Машина с ID ${id} не найдена.`);
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            console.log('\n📋 Текущая информация о машине:');
+            this.displayCar(existingCar);
+            console.log('\n✏️ Введите новые значения (оставьте пустым для сохранения текущего):');
+
+            const manufacturer = await this.askQuestion(`🏭 Производитель [${existingCar.manufacturer}]: `);
+            const model = await this.askQuestion(`🚘 Модель [${existingCar.model}]: `);
+            const yearInput = await this.askQuestion(`📅 Год выпуска [${existingCar.year}]: `);
+            const isUsedInput = await this.askQuestion(`🔧 Состояние (новая/бу) [${existingCar.isUsed ? 'бу' : 'новая'}]: `);
+            const priceInput = await this.askQuestion(`💰 Цена [${existingCar.price}]: `);
+
+            const updateData: CarUpdate = { id };
+
+            if (manufacturer.trim()) {
+                updateData.manufacturer = manufacturer.trim();
+            }
+            if (model.trim()) {
+                updateData.model = model.trim();
+            }
+            if (yearInput.trim()) {
+                const year = parseInt(yearInput);
+                if (this.isValidYear(year)) {
+                    updateData.year = year;
+                }
+            }
+            if (isUsedInput.trim()) {
+                updateData.isUsed = isUsedInput.toLowerCase() === 'бу' || 
+                                  isUsedInput.toLowerCase() === 'б/у' ||
+                                  isUsedInput.toLowerCase() === 'used' ||
+                                  isUsedInput.toLowerCase() === 'true';
+            }
+            if (priceInput.trim()) {
+                const price = parseFloat(priceInput);
+                if (!isNaN(price) && price > 0 && price <= 10000000) {
+                    updateData.price = price;
+                }
+            }
+
+            // Проверяем, есть ли что обновлять
+            const hasUpdates = Object.keys(updateData).length > 1; // Больше 1, потому что id всегда есть
+            
+            if (hasUpdates) {
+                const updatedCar = this.catalog.updateCar(updateData);
+                if (updatedCar) {
+                    console.log('\n✅ Информация успешно обновлена:');
+                    this.displayCar(updatedCar);
+                }
+            } else {
+                console.log('\nℹ️ Изменений не внесено.');
+            }
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при обновлении машины:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Удаление машины
+    private async deleteCar(): Promise<void> {
+        try {
+            const idStr = await this.askQuestion('🗑️ Введите ID машины для удаления: ');
+            const id = parseInt(idStr);
+            
+            if (isNaN(id) || id <= 0) {
+                console.log('❌ Ошибка: ID должен быть положительным числом!');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            const car = this.catalog.getCarById(id);
+            if (!car) {
+                console.log(`\n❌ Машина с ID ${id} не найдена.`);
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            console.log('\n⚠️ Вы собираетесь удалить:');
+            this.displayCar(car);
+            
+            const confirm = await this.askQuestion('\n❓ Вы уверены? (да/нет): ');
+            
+            if (confirm.toLowerCase() === 'да') {
+                const success = this.catalog.deleteCar(id);
+                
+                if (success) {
+                    console.log(`\n✅ Машина с ID ${id} успешно удалена.`);
+                }
+            } else {
+                console.log('\n❌ Удаление отменено.');
+            }
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при удалении машины:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Показать статистику
+    private async showStatistics(): Promise<void> {
+        const stats = this.catalog.getStatistics();
+        
+        console.log('\n=== 📊 СТАТИСТИКА КАТАЛОГА ===');
+        console.log(`📈 Всего машин: ${stats.totalCars}`);
+        console.log(`🆕 Новых: ${stats.newCars}`);
+        console.log(`🔧 Б/У: ${stats.usedCars}`);
+        console.log(`💰 Средняя цена: $${stats.averagePrice.toLocaleString('ru-RU')}`);
+        
+        if (stats.totalCars > 0) {
+            console.log(`📅 Диапазон годов: ${stats.minYear} - ${stats.maxYear}`);
+        }
+        await this.askQuestion('\nНажмите Enter для продолжения...');
+    }
+
+    // Очистка каталога
+    private async clearCatalog(): Promise<void> {
+        try {
+            const stats = this.catalog.getStatistics();
+            if (stats.totalCars === 0) {
+                console.log('\nℹ️ Каталог уже пуст.');
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+                return;
+            }
+
+            console.log(`\n⚠️ ВЫ УВЕРЕНЫ? Все данные (${stats.totalCars} машин) будут удалены!`);
+            const confirm = await this.askQuestion('Введите "УДАЛИТЬ" для подтверждения: ');
+            
+            if (confirm === 'УДАЛИТЬ') {
+                this.catalog.clearCatalog();
+                console.log('✅ Каталог очищен.');
+            } else {
+                console.log('❌ Операция отменена.');
+            }
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при очистке каталога:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Добавление демо-данных
+    private async addDemoData(): Promise<void> {
+        try {
+            const existingCars = this.catalog.getAllCars();
+            if (existingCars.length > 0) {
+                const confirm = await this.askQuestion('\n⚠️ В каталоге уже есть данные. Добавить демо-данные? (да/нет): ');
+                if (confirm.toLowerCase() !== 'да') {
+                    console.log('❌ Операция отменена.');
+                    await this.askQuestion('\nНажмите Enter для продолжения...');
+                    return;
+                }
+            }
+
+            this.catalog.addDemoData();
+            const newCount = this.catalog.getAllCars().length - existingCars.length;
+            console.log(`\n✅ Демо-данные добавлены! Добавлено ${newCount} машин.`);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        } catch (error) {
+            console.log('❌ Ошибка при добавлении демо-данных:', error);
+            await this.askQuestion('\nНажмите Enter для продолжения...');
+        }
+    }
+
+    // Главный цикл приложения
+    public async run(): Promise<void> {
+        console.clear();
+        console.log('🚗 Добро пожаловать в систему управления каталогом машин!');
+        
+        let running = true;
+        
+        while (running) {
+            try {
+                this.displayMenu();
+                const choice = await this.askQuestion('\n🎯 Выберите действие (0-9): ');
+
+                switch (choice) {
+                    case '1':
+                        await this.addCar();
+                        break;
+                    case '2':
+                        await this.showAllCars();
+                        break;
+                    case '3':
+                        await this.findCarById();
+                        break;
+                    case '4':
+                        await this.searchCars();
+                        break;
+                    case '5':
+                        await this.updateCar();
+                        break;
+                    case '6':
+                        await this.deleteCar();
+                        break;
+                    case '7':
+                        await this.showStatistics();
+                        break;
+                    case '8':
+                        await this.clearCatalog();
+                        break;
+                    case '9':
+                        await this.addDemoData();
+                        break;
+                    case '0':
+                        console.log('\n👋 До свидания!');
+                        running = false;
+                        break;
+                    default:
+                        console.log('\n❌ Неверный выбор. Попробуйте снова.');
+                        await this.askQuestion('\nНажмите Enter для продолжения...');
+                }
+            } catch (error) {
+                console.log('❌ Произошла ошибка:', error);
+                await this.askQuestion('\nНажмите Enter для продолжения...');
+            }
+        }
+        
+        this.close();
+    }
+
+    public close(): void {
+        this.rl.close();
+    }
+}
