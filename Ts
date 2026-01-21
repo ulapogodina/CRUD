@@ -1,0 +1,278 @@
+// Вспомогательные функции для работы с консолью
+import * as readline from 'readline';
+
+class ConsoleInterface {
+    private rl: readline.Interface;
+    private catalog: CarCatalog;
+
+    constructor() {
+        this.rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+        this.catalog = new CarCatalog();
+    }
+
+    // Отображение меню
+    displayMenu(): void {
+        console.log('\n=== КАТАЛОГ МАШИН ===');
+        console.log('1. Добавить машину');
+        console.log('2. Показать все машины');
+        console.log('3. Найти машину по ID');
+        console.log('4. Поиск машин по фильтрам');
+        console.log('5. Обновить информацию о машине');
+        console.log('6. Удалить машину');
+        console.log('7. Показать статистику');
+        console.log('8. Очистить каталог');
+        console.log('9. Выйти');
+    }
+
+    // Запрос ввода
+    askQuestion(question: string): Promise<string> {
+        return new Promise((resolve) => {
+            this.rl.question(question, resolve);
+        });
+    }
+
+    // Форматированный вывод машины
+    displayCar(car: Car): void {
+        console.log('\n' + '='.repeat(40));
+        console.log(`ID: ${car.id}`);
+        console.log(`Производитель: ${car.manufacturer}`);
+        console.log(`Модель: ${car.model}`);
+        console.log(`Год выпуска: ${car.year}`);
+        console.log(`Состояние: ${car.isUsed ? 'Б/У' : 'Новая'}`);
+        console.log(`Цена: $${car.price.toLocaleString()}`);
+        console.log('='.repeat(40));
+    }
+
+    // Добавление машины
+    async addCar(): Promise<void> {
+        console.log('\n=== ДОБАВЛЕНИЕ НОВОЙ МАШИНЫ ===');
+
+        const manufacturer = await this.askQuestion('Производитель: ');
+        const model = await this.askQuestion('Модель: ');
+        const year = parseInt(await this.askQuestion('Год выпуска: '));
+        const isUsedInput = await this.askQuestion('Состояние (новая/бу): ');
+        const isUsed = isUsedInput.toLowerCase() === 'бу';
+        const price = parseFloat(await this.askQuestion('Цена ($): '));
+
+        if (isNaN(year) || isNaN(price)) {
+            console.log('Ошибка: год и цена должны быть числами!');
+            return;
+        }
+
+        const newCar: NewCar = {
+            manufacturer,
+            model,
+            year,
+            isUsed,
+            price
+        };
+
+        const car = this.catalog.addCar(newCar);
+        console.log('\n✅ Машина успешно добавлена:');
+        this.displayCar(car);
+    }
+
+    // Показать все машины
+    showAllCars(): void {
+        const cars = this.catalog.getAllCars();
+        
+        if (cars.length === 0) {
+            console.log('\nКаталог пуст.');
+            return;
+        }
+
+        console.log(`\n=== ВСЕ МАШИНЫ (${cars.length}) ===`);
+        cars.forEach(car => this.displayCar(car));
+    }
+
+    // Поиск по ID
+    async findCarById(): Promise<void> {
+        const id = parseInt(await this.askQuestion('Введите ID машины: '));
+        
+        if (isNaN(id)) {
+            console.log('Ошибка: ID должен быть числом!');
+            return;
+        }
+
+        const car = this.catalog.getCarById(id);
+        
+        if (car) {
+            this.displayCar(car);
+        } else {
+            console.log(`\n❌ Машина с ID ${id} не найдена.`);
+        }
+    }
+
+    // Поиск по фильтрам
+    async searchCars(): Promise<void> {
+        console.log('\n=== ПОИСК МАШИН ===');
+        console.log('(Оставьте поле пустым, если фильтр не нужен)');
+
+        const manufacturer = await this.askQuestion('Производитель: ');
+        const model = await this.askQuestion('Модель: ');
+        const yearInput = await this.askQuestion('Год выпуска: ');
+        const isUsedInput = await this.askQuestion('Состояние (новая/бу): ');
+        const maxPriceInput = await this.askQuestion('Максимальная цена ($): ');
+
+        const filters: any = {};
+        
+        if (manufacturer) filters.manufacturer = manufacturer;
+        if (model) filters.model = model;
+        if (yearInput) filters.year = parseInt(yearInput);
+        if (isUsedInput) {
+            filters.isUsed = isUsedInput.toLowerCase() === 'бу';
+        }
+        if (maxPriceInput) {
+            const maxPrice = parseFloat(maxPriceInput);
+            if (!isNaN(maxPrice)) {
+                filters.price = maxPrice;
+            }
+        }
+
+        const results = this.catalog.searchCars(filters);
+        
+        if (results.length === 0) {
+            console.log('\nМашины по заданным критериям не найдены.');
+        } else {
+            console.log(`\n=== НАЙДЕНО МАШИН: ${results.length} ===`);
+            results.forEach(car => this.displayCar(car));
+        }
+    }
+
+    // Обновление машины
+    async updateCar(): Promise<void> {
+        console.log('\n=== ОБНОВЛЕНИЕ ИНФОРМАЦИИ О МАШИНЕ ===');
+        
+        const id = parseInt(await this.askQuestion('Введите ID машины для обновления: '));
+        
+        if (isNaN(id)) {
+            console.log('Ошибка: ID должен быть числом!');
+            return;
+        }
+
+        const existingCar = this.catalog.getCarById(id);
+        if (!existingCar) {
+            console.log(`\n❌ Машина с ID ${id} не найдена.`);
+            return;
+        }
+
+        console.log('\nТекущая информация о машине:');
+        this.displayCar(existingCar);
+        console.log('\nВведите новые значения (оставьте пустым для сохранения текущего):');
+
+        const manufacturer = await this.askQuestion(`Производитель [${existingCar.manufacturer}]: `);
+        const model = await this.askQuestion(`Модель [${existingCar.model}]: `);
+        const yearInput = await this.askQuestion(`Год выпуска [${existingCar.year}]: `);
+        const isUsedInput = await this.askQuestion(`Состояние (новая/бу) [${existingCar.isUsed ? 'бу' : 'новая'}]: `);
+        const priceInput = await this.askQuestion(`Цена [${existingCar.price}]: `);
+
+        const updateData: CarUpdate = { id };
+
+        if (manufacturer) updateData.manufacturer = manufacturer;
+        if (model) updateData.model = model;
+        if (yearInput) updateData.year = parseInt(yearInput);
+        if (isUsedInput) {
+            updateData.isUsed = isUsedInput.toLowerCase() === 'бу';
+        }
+        if (priceInput) updateData.price = parseFloat(priceInput);
+
+        const updatedCar = this.catalog.updateCar(updateData);
+        
+        if (updatedCar) {
+            console.log('\n✅ Информация успешно обновлена:');
+            this.displayCar(updatedCar);
+        }
+    }
+
+    // Удаление машины
+    async deleteCar(): Promise<void> {
+        const id = parseInt(await this.askQuestion('Введите ID машины для удаления: '));
+        
+        if (isNaN(id)) {
+            console.log('Ошибка: ID должен быть числом!');
+            return;
+        }
+
+        const success = this.catalog.deleteCar(id);
+        
+        if (success) {
+            console.log(`\n✅ Машина с ID ${id} успешно удалена.`);
+        } else {
+            console.log(`\n❌ Машина с ID ${id} не найдена.`);
+        }
+    }
+
+    // Показать статистику
+    showStatistics(): void {
+        const stats = this.catalog.getStatistics();
+        
+        console.log('\n=== СТАТИСТИКА КАТАЛОГА ===');
+        console.log(`Всего машин: ${stats.totalCars}`);
+        console.log(`Новых: ${stats.newCars}`);
+        console.log(`Б/У: ${stats.usedCars}`);
+        console.log(`Средняя цена: $${stats.averagePrice.toLocaleString()}`);
+        console.log(`Диапазон годов: ${stats.minYear} - ${stats.maxYear}`);
+    }
+
+    // Очистка каталога
+    async clearCatalog(): Promise<void> {
+        const confirm = await this.askQuestion('\n⚠️  ВЫ УВЕРЕНЫ? Все данные будут удалены! (да/нет): ');
+        
+        if (confirm.toLowerCase() === 'да') {
+            this.catalog.clearCatalog();
+            console.log('✅ Каталог очищен.');
+        } else {
+            console.log('❌ Операция отменена.');
+        }
+    }
+
+    // Главный цикл приложения
+    async run(): Promise<void> {
+        console.log('Добро пожаловать в систему управления каталогом машин!');
+        
+        while (true) {
+            this.displayMenu();
+            const choice = await this.askQuestion('\nВыберите действие (1-9): ');
+
+            switch (choice) {
+                case '1':
+                    await this.addCar();
+                    break;
+                case '2':
+                    this.showAllCars();
+                    break;
+                case '3':
+                    await this.findCarById();
+                    break;
+                case '4':
+                    await this.searchCars();
+                    break;
+                case '5':
+                    await this.updateCar();
+                    break;
+                case '6':
+                    await this.deleteCar();
+                    break;
+                case '7':
+                    this.showStatistics();
+                    break;
+                case '8':
+                    await this.clearCatalog();
+                    break;
+                case '9':
+                    console.log('\nДо свидания!');
+                    this.rl.close();
+                    return;
+                default:
+                    console.log('\n❌ Неверный выбор. Попробуйте снова.');
+            }
+        }
+    }
+
+    close(): void {
+        this.rl.close();
+    }
+}
