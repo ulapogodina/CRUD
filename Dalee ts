@@ -1,0 +1,18 @@
+// Основной файл приложения
+const main = async (): Promise<void> => {
+    const app = new ConsoleInterface();
+    
+    try {
+        await app.run();
+    } catch (error) {
+        console.error('Произошла ошибка:', error);
+        app.close();
+    }
+};
+
+// Запуск приложения
+if (require.main === module) {
+    main();
+}
+
+export { Car, NewCar, CarUpdate, CarCatalog };
